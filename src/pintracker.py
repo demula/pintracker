@@ -7,6 +7,8 @@ import time
 import email
 from email.mime.text import MIMEText
 import smtplib
+import glib
+import gtk
 
 
 # -------------------------------------------------------------- CONFIG READER
@@ -204,15 +206,80 @@ class PinEmail(object):
         self.send(subject,body)
 
 
+# ------------------------------------------------------------------------ GUI
+class PintrackerStatusIcon(object):
+
+    def __init__(self, config):
+        # hold a pintracker instance
+        self.pintrck = Pintracker(config)
+        # add the time out callback
+        self.interval = config["interval_min"]*60 #seconds
+        glib.timeout_add_seconds(self.interval, self.timeout_repeat)
+
+        # create a new Status Icon
+        self.staticon = gtk.StatusIcon()
+        self.staticon.set_from_stock(gtk.STOCK_EDIT)
+        self.staticon.set_name("pintracker")
+        self.staticon.set_title("Pintracker")
+        #self.staticon.set_tooltip("Pintracker")
+        #self.staticon.set_blinking(True)
+
+        # create de popup menu
+        self.menu = gtk.Menu()
+
+        # Create the menu items
+        about = gtk.MenuItem("About")
+        exit = gtk.MenuItem("Exit")
+
+
+        #connect signals
+        about.connect("activate", self.show_about_dialog)
+        exit.connect("activate", gtk.main_quit)
+
+        # Add them to the menu
+        self.menu.append(about)
+        self.menu.append(exit)
+
+        self.menu.show_all()
+
+        #connect signals
+        self.staticon.connect("popup-menu", self.popup_menu) #right click
+
+        #show everything needed
+        self.staticon.set_visible(True)
+
+    def timeout_repeat(self):
+        self.pintrck.run()
+        glib.timeout_add_seconds(self.interval, self.timeout_repeat)
+
+
+    def run(self):
+        gtk.main()
+
+    # popup menu callback
+    def popup_menu(self, icon, button, time):
+        self.menu.popup(None, None, gtk.status_icon_position_menu,
+                    button, time, self.staticon)
+
+    def show_about_dialog(self, widget):
+        about_dialog = gtk.AboutDialog()
+
+        about_dialog.set_destroy_with_parent(True)
+        about_dialog.set_name("Pintracker")
+        about_dialog.set_version("0.1")
+        about_dialog.set_authors(["Jesus de Mula Cano"])
+
+        about_dialog.run()
+        about_dialog.destroy()
+
+
 # ----------------------------------------------------------------------- MAIN
 def main():
     # Deberiamos cambiar esta ruta a la estandar del SO
     config_file_path = os.path.join(os.path.abspath(os.path.dirname(__file__)),
                                                     "pintracker.cfg")
     config = read_config(config_file_path)
-    pintrck = Pintracker(config)
-    while True:
-        pintrck.run()
-        time.sleep(self.config["interval_min"]*60)
+    pintrck = PintrackerStatusIcon(config)
+    pintrck.run()
 
 if __name__ == "__main__": main()
