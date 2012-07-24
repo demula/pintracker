@@ -141,12 +141,12 @@ class Pintracker(object):
         if self.is_time_daily():
             below_min = self.check_min_pines()
             if below_min:
-                PinEmail(self.config).send_daily(below_min)
+                #PinEmail(self.config).send_daily(below_min)
                 print "\n\nEMAIL SENT DAILY\n\n\n"
         if self.is_time_weekly():
             below_min = self.check_min_pines()
             estado_pines = self.estado_pines()
-            PinEmail(self.config).send_weekly(estado_pines, below_min)
+            #PinEmail(self.config).send_weekly(estado_pines, below_min)
             print "\n\nEMAIL SENT WEEKLY\n\n\n"
 
 
@@ -212,6 +212,8 @@ class PintrackerStatusIcon(object):
     def __init__(self, config):
         # hold a pintracker instance
         self.pintrck = Pintracker(config)
+        self.pins_liststore = gtk.ListStore(str, int)
+        self.update_pins_liststore()
         # add the time out callback
         self.interval = config["interval_min"]*60 #seconds
         glib.timeout_add_seconds(self.interval, self.timeout_repeat)
@@ -228,15 +230,18 @@ class PintrackerStatusIcon(object):
         self.menu = gtk.Menu()
 
         # Create the menu items
+        status = gtk.MenuItem("Pin status")
         about = gtk.MenuItem("About")
         exit = gtk.MenuItem("Exit")
 
 
         #connect signals
+        status.connect("activate", self.show_status_window)
         about.connect("activate", self.show_about_dialog)
         exit.connect("activate", gtk.main_quit)
 
         # Add them to the menu
+        self.menu.append(status)
         self.menu.append(about)
         self.menu.append(exit)
 
@@ -248,18 +253,116 @@ class PintrackerStatusIcon(object):
         #show everything needed
         self.staticon.set_visible(True)
 
+    def update_pins_liststore(self):
+        dict_state = self.pintrck.estado_pines()
+        if len(self.pins_liststore) == 0:
+            # populate for the first time
+            for path in dict_state.keys():
+                self.pins_liststore.append([path, dict_state[path]])
+        else:
+            for row in pins_liststore:
+                if row[0] in dict_state.keys():
+                    row = [row[0], dict_state[row[0]]]
+
     def timeout_repeat(self):
         self.pintrck.run()
         glib.timeout_add_seconds(self.interval, self.timeout_repeat)
+        return False
 
 
     def run(self):
         gtk.main()
+        return False
 
     # popup menu callback
     def popup_menu(self, icon, button, time):
         self.menu.popup(None, None, gtk.status_icon_position_menu,
                     button, time, self.staticon)
+        return False
+
+    def delete_status_window(self, widget, event, data=None):
+        self.window.hide()
+        return False
+
+    def show_status_window(self, widget):
+        self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        self.window.connect("delete_event", self.delete_status_window)
+        self.window.set_border_width(10)
+
+        vbox = gtk.VBox(False, 10)
+        hbox = gtk.HBox(False, 10)
+
+        label = gtk.Label("Pin status")
+
+        hbox.pack_start(label, False, False, 0)
+        label.show()
+
+        vbox.pack_start(hbox, False, False, 0)
+
+        hbox.show()
+
+        # create the TreeView using liststore
+        self.treeview = gtk.TreeView(self.pins_liststore)
+
+        # create the TreeViewColumns to display the data
+        self.tvcolumn_folders = gtk.TreeViewColumn('Folder')
+        self.tvcolumn_pins = gtk.TreeViewColumn('Pines')
+
+        # add columns to treeview
+        self.treeview.append_column(self.tvcolumn_folders)
+        self.treeview.append_column(self.tvcolumn_pins)
+
+        # create a CellRenderers to render the data
+        self.cell_folder = gtk.CellRendererText()
+        self.cell_pins = gtk.CellRendererText()
+
+        self.tvcolumn_folders.pack_start(self.cell_folder, True)
+        self.tvcolumn_pins.pack_start(self.cell_pins, True)
+
+        # create a new scrolled window.
+        scrolled_window = gtk.ScrolledWindow()
+        scrolled_window.set_border_width(10)
+
+        # the policy is one of POLICY AUTOMATIC, or POLICY_ALWAYS.
+        # POLICY_AUTOMATIC will automatically decide whether you need
+        # scrollbars, whereas POLICY_ALWAYS will always leave the scrollbars
+        # there. The first one is the horizontal scrollbar, the second, the
+        # vertical.
+        scrolled_window.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
+        scrolled_window.add_with_viewport(self.treeview)
+
+        vbox.pack_start(scrolled_window, False, False, 0)
+
+        self.treeview.show()
+        scrolled_window.show()
+
+        separator = gtk.HSeparator()
+        separator.set_size_request(400, 5)
+
+        vbox.pack_start(separator, False, True, 5)
+        separator.show()
+
+        quitbox = gtk.HBox(False, 10)
+
+        email_button = gtk.Button("Send email")
+        qbutton = gtk.Button("Quit")
+
+        qbutton.connect("clicked", lambda w: gtk.main_quit())
+        quitbox.pack_end(qbutton, True, False, 0)
+        quitbox.pack_end(email_button, True, False, 0)
+
+        vbox.pack_start(quitbox, False, False, 0)
+
+        self.window.add(vbox)
+
+        email_button.show()
+        qbutton.show()
+        quitbox.show()
+
+        vbox.show()
+        self.window.show()
+        return False
+
 
     def show_about_dialog(self, widget):
         about_dialog = gtk.AboutDialog()
@@ -271,6 +374,7 @@ class PintrackerStatusIcon(object):
 
         about_dialog.run()
         about_dialog.destroy()
+        return False
 
 
 # ----------------------------------------------------------------------- MAIN
