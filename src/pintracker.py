@@ -60,8 +60,21 @@ def read_config(file_path):
 class Pintracker(object):
     def __init__(self, config):
         self.config = config
-        self.last_email_time = None
-        self.last_pines_below_min = {}
+        now = datetime.datetime.now()
+        self.next_check_daily = datetime.datetime(
+                now.year, now.month, now.day,
+                self.config["daily_send_hour"].hour,
+                self.config["daily_send_hour"].minute)
+        # Calculate days to weekly check
+        if self.config["weekly_send_day"] >= now.weekday():
+            days_to_weekly = self.config["weekly_send_day"] - now.weekday()
+        else:
+            days_to_weekly = 7 - now.weekday() + self.config["weekly_send_day"]
+        delta_days = datetime.timedelta(days=days_to_weekly)
+        self.next_check_weekly = datetime.datetime(
+                now.year, now.month, now.day,
+                self.config["weekly_send_hour"].hour,
+                self.config["weekly_send_hour"].minute) + delta_days
 
     def numero_pines(self, ruta_fichero_excel):
         """
@@ -119,20 +132,22 @@ class Pintracker(object):
         return below_min
 
     def is_time_daily(self):
-        now = datetime.datetime.now().time()
-        send_time = self.config["daily_send_hour"]
-        if (now < send_time and
-            send_time.minute - now.minute < self.config["interval_min"]):
+        now = datetime.datetime.now()
+        seconds_from_deadline = abs((self.next_check_daily - now).total_seconds())
+        if seconds_from_deadline < self.config["interval_min"]*60:
+            delta_day = datetime.timedelta(days=1)
+            self.next_check_daily = self.next_check_daily + delta_day
             return True
         else:
             return False
 
     def is_time_weekly(self):
         now = datetime.datetime.now()
-        send_time = self.config["weekly_send_hour"]
-        in_window = send_time.minute - now.minute < self.config["interval_min"]
+        in_window = abs((self.next_check_weekly - now).total_seconds()) < self.config["interval_min"]*60
         same_weekday = self.config["weekly_send_day"] == now.weekday()
-        if now.time() < send_time and in_window and same_weekday:
+        if same_weekday and in_window:
+            delta_week = datetime.timedelta(weeks=1)
+            self.next_check_weekly = self.next_check_weekly + delta_week
             return True
         else:
             return False
@@ -141,18 +156,19 @@ class Pintracker(object):
         if self.is_time_daily():
             below_min = self.check_min_pines()
             if below_min:
-                #PinEmail(self.config).send_daily(below_min)
+                PinEmail(self.config).send_daily(below_min)
                 print "\n\nEMAIL SENT DAILY\n\n\n"
         if self.is_time_weekly():
             below_min = self.check_min_pines()
             estado_pines = self.estado_pines()
-            #PinEmail(self.config).send_weekly(estado_pines, below_min)
+            PinEmail(self.config).send_weekly(estado_pines, below_min)
             print "\n\nEMAIL SENT WEEKLY\n\n\n"
 
     def send_estado_pines(self):
         below_min = self.check_min_pines()
         estado_pines = self.estado_pines()
         PinEmail(self.config).send_status(estado_pines, below_min)
+        print "\n\nEMAIL SENT by petition\n\n\n"
 
 
 class PinEmail(object):

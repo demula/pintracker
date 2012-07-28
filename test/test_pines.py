@@ -81,7 +81,22 @@ class TestPinesReader(unittest.TestCase):
         self.base_path = os.path.abspath(os.path.dirname(__file__))
 
     def test_num_pins(self):
-        pintrck = Pintracker({})
+        dict_sample_config = {
+                "stock_dir": self.base_path,
+                "smtp_server":"mail.example.com",
+                "email":"user@example.com",
+                "password":"1234",
+                "interval_min":40,
+                "daily_send_hour": datetime.time(18,00),
+                "weekly_send_hour": datetime.time(8,00),
+                "weekly_send_day": 4,
+                "min_pines": {
+                    "jazztel (activado)":100,
+                    "orange":20,
+                    "tarjetalia":10
+                    }
+                }
+        pintrck = Pintracker(dict_sample_config)
         for file in self.expected_results.iterkeys():
             pines_file_path = os.path.join(self.base_path, file)
             pines_leidos = pintrck.numero_pines(pines_file_path)
@@ -106,7 +121,22 @@ class TestCheckPinesDir(unittest.TestCase):
         shutil.rmtree(os.path.join(self.base_path, self.dir))
 
     def test_check_dir_total_pines(self):
-        pintrck = Pintracker({})
+        dict_sample_config = {
+                "stock_dir": self.base_path,
+                "smtp_server":"mail.example.com",
+                "email":"user@example.com",
+                "password":"1234",
+                "interval_min":40,
+                "daily_send_hour": datetime.time(18,00),
+                "weekly_send_hour": datetime.time(8,00),
+                "weekly_send_day": 4,
+                "min_pines": {
+                    "jazztel (activado)":100,
+                    "orange":20,
+                    "tarjetalia":10
+                    }
+                }
+        pintrck = Pintracker(dict_sample_config)
         num_pines = pintrck.check_dir_total_pines(
                                         os.path.join(self.base_path, self.dir))
         self.assertEqual(num_pines, self.expected_result)
@@ -206,7 +236,7 @@ class TestIsTime(unittest.TestCase):
         interval_min = 40
         now = datetime.datetime.now()
 
-        send_time_date = now + datetime.timedelta(minutes=interval_min/2)
+        send_time_date = now + datetime.timedelta(minutes=interval_min - 1)
         send_time = send_time_date.time()
         dict_sample_config = {
                 "interval_min": interval_min,
@@ -219,7 +249,7 @@ class TestIsTime(unittest.TestCase):
         actual_result = pintrck.is_time_daily()
         self.assertEqual(actual_result, expected_result)
 
-        send_time_date = now - datetime.timedelta(minutes=interval_min/2)
+        send_time_date = now - datetime.timedelta(minutes=interval_min + 1)
         send_time = send_time_date.time()
         dict_sample_config = {
                 "interval_min": interval_min,
@@ -236,7 +266,7 @@ class TestIsTime(unittest.TestCase):
         interval_min = 40
         now = datetime.datetime.now()
 
-        send_time_date = now + datetime.timedelta(minutes=interval_min/2)
+        send_time_date = now + datetime.timedelta(minutes=interval_min - 1)
         send_time = send_time_date.time()
         dict_sample_config = {
                 "interval_min": interval_min,
@@ -249,7 +279,7 @@ class TestIsTime(unittest.TestCase):
         actual_result = pintrck.is_time_weekly()
         self.assertEqual(actual_result, expected_result)
 
-        send_time_date = now - datetime.timedelta(minutes=interval_min/2)
+        send_time_date = now - datetime.timedelta(minutes=interval_min + 1)
         send_time = send_time_date.time()
         dict_sample_config = {
                 "interval_min": interval_min,
@@ -262,7 +292,7 @@ class TestIsTime(unittest.TestCase):
         actual_result = pintrck.is_time_weekly()
         self.assertEqual(actual_result, expected_result)
 
-        send_time_date = now + datetime.timedelta(minutes=interval_min/2)
+        send_time_date = now + datetime.timedelta(minutes=interval_min - 1)
         send_time = send_time_date.time()
         dict_sample_config = {
                 "interval_min": interval_min,
