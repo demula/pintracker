@@ -149,6 +149,11 @@ class Pintracker(object):
             #PinEmail(self.config).send_weekly(estado_pines, below_min)
             print "\n\nEMAIL SENT WEEKLY\n\n\n"
 
+    def send_estado_pines(self):
+        below_min = self.check_min_pines()
+        estado_pines = self.estado_pines()
+        PinEmail(self.config).send_status(estado_pines, below_min)
+
 
 class PinEmail(object):
     def __init__(self, config):
@@ -186,6 +191,28 @@ class PinEmail(object):
 
     def send_weekly(self, estado_pines, below_limit):
         subject = "[STOCK PINES] Informe semanal"
+        body = """<p>Sumario del estado de los pines en stock (en rojo aquellos
+        por debajo de los limites establecidos):</p><br><ul>
+        """
+        for item in estado_pines.iterkeys():
+            if item in below_limit:
+                body = body + '<li><b style="color:red;">    %s: %i (limite %i)</b></li><br>' % (
+                                                    item,
+                                                    estado_pines[item],
+                                                    self.config["min_pines"][item])
+            else:
+                body = body + '<li>    %s: %i (limite %i)</li><br>' % (item,
+                                                    estado_pines[item],
+                                                    self.config["min_pines"][item])
+
+        body = body + "</ul><br><br><p>Hora de revision: %i:%i<br>" % (datetime.datetime.now().hour,
+                                                        datetime.datetime.now().minute)
+        body = body + "Carpeta de STOCK: %s<br><br></p>" % self.config["stock_dir"]
+        self.send(subject,body)
+
+
+    def send_status(self, estado_pines, below_limit):
+        subject = "[STOCK PINES] Informe por peticion"
         body = """<p>Sumario del estado de los pines en stock (en rojo aquellos
         por debajo de los limites establecidos):</p><br><ul>
         """
@@ -260,7 +287,7 @@ class PintrackerStatusIcon(object):
             for path in dict_state.keys():
                 self.pins_liststore.append([path, dict_state[path]])
         else:
-            for row in pins_liststore:
+            for row in self.pins_liststore:
                 if row[0] in dict_state.keys():
                     row = [row[0], dict_state[row[0]]]
 
@@ -288,11 +315,13 @@ class PintrackerStatusIcon(object):
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.connect("delete_event", self.delete_status_window)
         self.window.set_border_width(10)
+        self.window.set_title("Pin status")
+        #self.window.set_size_request(200, 200)
 
         vbox = gtk.VBox(False, 10)
         hbox = gtk.HBox(False, 10)
 
-        label = gtk.Label("Pin status")
+        label = gtk.Label("Stock folder: %s" % self.pintrck.config["stock_dir"])
 
         hbox.pack_start(label, False, False, 0)
         label.show()
@@ -302,26 +331,40 @@ class PintrackerStatusIcon(object):
         hbox.show()
 
         # create the TreeView using liststore
-        self.treeview = gtk.TreeView(self.pins_liststore)
+        treeview = gtk.TreeView(self.pins_liststore)
 
         # create the TreeViewColumns to display the data
-        self.tvcolumn_folders = gtk.TreeViewColumn('Folder')
-        self.tvcolumn_pins = gtk.TreeViewColumn('Pines')
+        tvcolumn_folders = gtk.TreeViewColumn('Folder')
+        tvcolumn_pins = gtk.TreeViewColumn('Pines')
 
         # add columns to treeview
-        self.treeview.append_column(self.tvcolumn_folders)
-        self.treeview.append_column(self.tvcolumn_pins)
+        treeview.append_column(tvcolumn_folders)
+        treeview.append_column(tvcolumn_pins)
 
         # create a CellRenderers to render the data
-        self.cell_folder = gtk.CellRendererText()
-        self.cell_pins = gtk.CellRendererText()
+        cell_folder = gtk.CellRendererText()
+        cell_pins = gtk.CellRendererText()
 
-        self.tvcolumn_folders.pack_start(self.cell_folder, True)
-        self.tvcolumn_pins.pack_start(self.cell_pins, True)
+        tvcolumn_folders.pack_start(cell_folder, True)
+        tvcolumn_pins.pack_start(cell_pins, True)
+
+        tvcolumn_folders.set_attributes(cell_folder, text=0)
+        tvcolumn_pins.set_attributes(cell_pins, text=1)
+
+        # make treeview searchable
+        #treeview.set_search_column(0)
+
+        # Allow sorting on the column
+        tvcolumn_folders.set_sort_column_id(0)
+        tvcolumn_pins.set_sort_column_id(1)
+
+        # Allow drag and drop reordering of rows
+        treeview.set_reorderable(True)
 
         # create a new scrolled window.
         scrolled_window = gtk.ScrolledWindow()
-        scrolled_window.set_border_width(10)
+        scrolled_window.set_border_width(0)
+        scrolled_window.set_size_request(400, 500)
 
         # the policy is one of POLICY AUTOMATIC, or POLICY_ALWAYS.
         # POLICY_AUTOMATIC will automatically decide whether you need
@@ -329,29 +372,33 @@ class PintrackerStatusIcon(object):
         # there. The first one is the horizontal scrollbar, the second, the
         # vertical.
         scrolled_window.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
-        scrolled_window.add_with_viewport(self.treeview)
+        scrolled_window.add_with_viewport(treeview)
 
-        vbox.pack_start(scrolled_window, False, False, 0)
+        vbox.pack_start(scrolled_window, True, True, 0)
+        #vbox.pack_start(treeview, False, False, 0)
 
-        self.treeview.show()
+        treeview.show()
         scrolled_window.show()
 
         separator = gtk.HSeparator()
-        separator.set_size_request(400, 5)
+        #separator.set_size_request(400, 5)
 
-        vbox.pack_start(separator, False, True, 5)
         separator.show()
 
         quitbox = gtk.HBox(False, 10)
 
         email_button = gtk.Button("Send email")
-        qbutton = gtk.Button("Quit")
+        qbutton = gtk.Button("Close")
 
-        qbutton.connect("clicked", lambda w: gtk.main_quit())
-        quitbox.pack_end(qbutton, True, False, 0)
-        quitbox.pack_end(email_button, True, False, 0)
+        qbutton.connect("clicked", lambda w: self.window.hide())
+        email_button.connect("clicked", lambda w: self.pintrck.send_estado_pines())
+        quitbox.pack_end(qbutton, False, False, 0)
+        quitbox.pack_end(email_button, False, False, 0)
 
-        vbox.pack_start(quitbox, False, False, 0)
+        vbox.pack_end(quitbox, False, False, 0)
+        vbox.pack_end(separator, False, True, 5)
+
+        separator.show()
 
         self.window.add(vbox)
 
