@@ -187,7 +187,7 @@ class PinEmail(object):
         s.debuglevel = 5
         s.login(self.config["user"], self.config["password"])
         s.sendmail(self.config["email"],
-                   self.config["recipients"],
+                   self.config["recipients"].split(", "),
                    msg.as_string())
         s.quit()
 
