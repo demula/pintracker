@@ -328,6 +328,9 @@ class PintrackerStatusIcon(object):
         return False
 
     def show_status_window(self, widget):
+        # update stock status every time the window is shown
+        self.update_pins_liststore()
+        
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.connect("delete_event", self.delete_status_window)
         self.window.set_border_width(10)
